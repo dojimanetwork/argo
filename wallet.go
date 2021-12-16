@@ -33,7 +33,7 @@ func NewWalletFromPath(path string, clientUrl string, proxyUrl ...string) (*Wall
 }
 
 func NewWallet(b []byte, clientUrl string, proxyUrl ...string) (w *Wallet, err error) {
-	key, err := gojwk.Unmarshal(b)
+	key, err := jwkgo.Unmarshal(b)
 	if err != nil {
 		return
 	}
