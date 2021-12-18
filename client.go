@@ -37,6 +37,7 @@ func NewClient(nodeUrl string, proxyUrl ...string) *Client {
 			log.Error("url parse", "error", err)
 			panic(err)
 		}
+		//Transport constructor with composite literal 
 		tr := &http.Transport{Proxy: http.ProxyURL(proxyUrl)}
 		httpClient = &http.Client{Transport: tr}
 	}
