@@ -92,7 +92,7 @@ func (c *Client) GetTransactionByID(id string) (tx *types.Transaction, err error
 		// json unmarshal
 		tx = &types.Transaction{}
 		err = json.Unmarshal(body, tx)
-		return
+		return tx, err
 	case 202:
 		return nil, ErrPendingTx
 	case 400:
@@ -168,7 +168,7 @@ func (c *Client) GetTransactionData(id string, extension ...string) (body []byte
 	if extension != nil {
 		urlPath = urlPath + "." + extension[0]
 	}
-	body, statusCode, err := c.httpGet(urlPath)
+	body, statusCode, _ := c.httpGet(urlPath)
 
 	// When data is bigger than 12MiB statusCode == 400 NOTE: Data bigger than that has to be downloaded chunk by chunk.
 	if statusCode == 400 {
@@ -191,7 +191,7 @@ func (c *Client) GetTransactionData(id string, extension ...string) (body []byte
 // GetTransactionDataByGateway
 func (c *Client) GetTransactionDataByGateway(id string) (body []byte, err error) {
 	urlPath := fmt.Sprintf("/%v/%v", id, "data")
-	body, statusCode, err := c.httpGet(urlPath)
+	body, statusCode, _ := c.httpGet(urlPath)
 	switch statusCode {
 	case 200:
 		if len(body) == 0 {
@@ -260,11 +260,11 @@ func (c *Client) SubmitChunks(gc *types.GetChunk) (status string, code int, err 
 }
 
 // Arql is Deprecated, recommended to use GraphQL
-func (c *Client) Arql(arql string) (ids []string, err error) {
-	body, _, err := c.httpPost("arql", []byte(arql))
-	err = json.Unmarshal(body, &ids)
-	return
-}
+// func (c *Client) Arql(arql string) (ids []string, err error) {
+// 	body, _, err := c.httpPost("arql", []byte(arql))
+// 	err = json.Unmarshal(body, &ids)
+// 	return
+// }
 
 func (c *Client) GraphQL(query string) ([]byte, error) {
 	// generate query
