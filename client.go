@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dojimanetwork/argo/types"
+	"github.com/dojimanetwork/argo/utils"
 	"github.com/inconshreveable/log15"
 	"io/ioutil"
 	"math/big"
@@ -13,9 +15,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-
-	"github.com/dojimanetwork/argo/types"
-	"github.com/dojimanetwork/argo/utils"
 )
 
 var log = log15.New("module", "argo")
@@ -37,7 +36,7 @@ func NewClient(nodeUrl string, proxyUrl ...string) *Client {
 			log.Error("url parse", "error", err)
 			panic(err)
 		}
-		//Transport constructor with composite literal 
+		//Transport constructor with composite literal
 		tr := &http.Transport{Proxy: http.ProxyURL(proxyUrl)}
 		httpClient = &http.Client{Transport: tr}
 	}
@@ -493,4 +492,22 @@ func (c *Client) GetTxFromPeers(arId string) (*types.Transaction, error) {
 	}
 
 	return nil, errors.New("get tx from peers failed")
+}
+
+func PstClient(url string) {
+	var client http.Client
+	resp, err := client.Get(url)
+	if err != nil {
+		fmt.Print("Error", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Print("Error", err)
+		}
+		bodyString := string(bodyBytes)
+		log.Info(bodyString)
+	}
 }

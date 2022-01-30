@@ -37,31 +37,38 @@ func NewWallet(b []byte, clientUrl string, proxyUrl ...string) (w *Wallet, err e
 	if err != nil {
 		return
 	}
+	// fmt.Printf("Key %+v", key)
 
 	pubKey, err := key.DecodePublicKey()
 	if err != nil {
 		return
 	}
+
+	fmt.Printf("Public key %+v", pubKey)
+
 	pub, ok := pubKey.(*rsa.PublicKey)
 	if !ok {
 		err = fmt.Errorf("pubKey type error")
 		return
 	}
-	prvKey, err := key.DecodePrivateKey()
-	if err != nil {
-		return
-	}
-	prv, ok := prvKey.(*rsa.PrivateKey)
-	if !ok {
-		err = fmt.Errorf("prvKey type error")
-		return
-	}
+	// prvKey, err := key.DecodePrivateKey()
+	// if err != nil {
+	// 	return
+	// }
+
+	// fmt.Printf("Private key %+v", prvKey)
+
+	// prv, ok := prvKey.(*rsa.PrivateKey)
+	// if !ok {
+	// 	err = fmt.Errorf("prvKey type error")
+	// 	return
+	// }
 
 	addr := sha256.Sum256(pub.N.Bytes())
 	w = &Wallet{
 		Client:  NewClient(clientUrl, proxyUrl...),
 		PubKey:  pub,
-		PrvKey:  prv,
+		// PrvKey:  prv,
 		Address: utils.Base64Encode(addr[:]),
 	}
 

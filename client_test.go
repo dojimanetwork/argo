@@ -1,6 +1,9 @@
 package argo
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/dojimanetwork/argo/utils"
@@ -138,22 +141,23 @@ func TestGetTransaction(t *testing.T) {
 	cli := NewClient(arNode)
 
 	// on chain tx
-	txId := "ggt-x5Q_niHifdNzMxZrhiibKf0KQ-cJun0UIBBa-yA"
-	txStatus, err := cli.GetTransactionStatus(txId)
+	txId := "Gz83Y8N3YEDK1uaNnQXtQz-4It2jhgb39M0gYNJtP6M"
+	// txStatus, err := cli.GetTransactionStatus(txId)
 	assert.NoError(t, err)
-	assert.Equal(t, 575660, txStatus.BlockHeight)
-	tx, err := cli.GetTransactionByID(txId)
-	assert.NoError(t, err)
-	assert.Equal(t, "0pu7-Otb-AH6SSSX_rfUmpTkwh3Nmhpztd_IT8nYXDwBE6P3B-eJSBuaTBeLypx4", tx.LastTx)
+	// assert.Equal(t, 837553, txStatus.BlockHeight)
+	tx, _ := cli.GetTransactionByID(txId)
+	fmt.Printf("%+v", tx)
+	// assert.NoError(t, err)
+	// assert.Equal(t, "0pu7-Otb-AH6SSSX_rfUmpTkwh3Nmhpztd_IT8nYXDwBE6P3B-eJSBuaTBeLypx4", tx.LastTx)
 
-	// not exist tx
-	txId = "KPlEyCrcs2rDHBFn2f0UUn2NZQKfawGb_EnBfip8ayA"
-	txStatus, err = cli.GetTransactionStatus(txId)
-	assert.Equal(t, ErrNotFound, err)
-	assert.Nil(t, txStatus)
-	tx, err = cli.GetTransactionByID(txId)
-	assert.Equal(t, ErrNotFound, err)
-	assert.Nil(t, tx)
+	// // not exist tx
+	// txId = "KPlEyCrcs2rDHBFn2f0UUn2NZQKfawGb_EnBfip8ayA"
+	// txStatus, err = cli.GetTransactionStatus(txId)
+	// assert.Equal(t, ErrNotFound, err)
+	// assert.Nil(t, txStatus)
+	// tx, err = cli.GetTransactionByID(txId)
+	// assert.Equal(t, ErrNotFound, err)
+	// assert.Nil(t, tx)
 
 	// // pending tx
 	// txId = "muANv_lsyZKC5C8fTxQaC2dCCyGDao8z35ECuGdIBP8" // need send a new tx create pending status
@@ -168,12 +172,16 @@ func TestGetTransaction(t *testing.T) {
 func TestClient_GetTransactionTags(t *testing.T) {
 	arNode := "https://arweave.net"
 	cli := NewClient(arNode)
-	id := "gdXUJuj9EZm99TmeES7zRHCJtnJoP3XgYo_7KJNV8Vw"
-	tags, err := cli.GetTransactionTags(id)
-	assert.NoError(t, err)
-	assert.Equal(t, "App", tags[0].Name)
-	assert.Equal(t, "Version", tags[1].Name)
-	assert.Equal(t, "Owner", tags[2].Name)
+	id := "Gz83Y8N3YEDK1uaNnQXtQz-4It2jhgb39M0gYNJtP6M"
+	tags, _ := cli.GetTransactionTags(id)
+	
+	fmt.Printf("%+v", tags[0])
+	jsonF,_ := json.Marshal(tags)
+	fmt.Println(string(jsonF))
+	// assert.NoError(t, err)
+	// assert.Equal(t, "App", tags[0].Name)
+	// assert.Equal(t, "Version", tags[1].Name)
+	// assert.Equal(t, "Owner", tags[2].Name)
 }
 
 func TestClient_GetBlockByHeight(t *testing.T) {
@@ -187,10 +195,18 @@ func TestClient_GetBlockByHeight(t *testing.T) {
 func TestClient_GetTransactionDataByGateway(t *testing.T) {
 	arNode := "https://arweave.net"
 	cli := NewClient(arNode)
-	id := "3S44SVxPWAqtadjehWR3bW1gP4B6Qsii4bnx9yz0_0s"
+	id := "-8A6RexFkpfWwuyVO98wzSFZh0d6VJuI-buTJvlwOJQ"
 	data, err := cli.GetTransactionDataByGateway(id)
+	var dst []byte
+	decode, _ := base64.StdEncoding.Decode(dst,data)
+	fmt.Print(decode)
 	assert.NoError(t, err)
 	t.Log(len(data))
+}
+
+func TestClient_PstClient(t *testing.T){
+	url := "http://localhost:3000/arweave/verify_tx/fadlfdsf"
+	PstClient(url)
 }
 
 func TestClient_GetPeers(t *testing.T) {
