@@ -9,7 +9,6 @@ require (
 	github.com/hamba/avro v1.5.6
 	github.com/inconshreveable/log15 v0.0.0-20201112154412-8562bdadbbac
 	github.com/mattn/go-colorable v0.1.12 // indirect
-	github.com/rs/zerolog v1.26.1
 	github.com/shopspring/decimal v1.2.0
 	github.com/stretchr/testify v1.7.0
 )
