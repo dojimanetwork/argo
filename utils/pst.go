@@ -34,8 +34,3 @@ func PstTransferTags(contractId string, target string, qty int64) ([]types.Tag, 
 	}
 	return pstTags, nil
 }
-
-
-func GetSupportedPstContracts() []string {
-	return supportedPstContracts[:]
-}

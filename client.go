@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/dojimanetwork/argo/types"
-	"github.com/dojimanetwork/argo/utils"
 	"github.com/inconshreveable/log15"
 	"io/ioutil"
 	"math/big"
@@ -15,6 +13,9 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"github.com/dojimanetwork/argo/types"
+	"github.com/dojimanetwork/argo/utils"
 )
 
 var log = log15.New("module", "argo")
@@ -36,7 +37,6 @@ func NewClient(nodeUrl string, proxyUrl ...string) *Client {
 			log.Error("url parse", "error", err)
 			panic(err)
 		}
-		//Transport constructor with composite literal
 		tr := &http.Transport{Proxy: http.ProxyURL(proxyUrl)}
 		httpClient = &http.Client{Transport: tr}
 	}
@@ -44,10 +44,23 @@ func NewClient(nodeUrl string, proxyUrl ...string) *Client {
 	return &Client{client: httpClient, url: nodeUrl}
 }
 
+func NewTempConn() *Client {
+	transport := http.Transport{DisableKeepAlives: true}
+	cli := &http.Client{Transport: &transport}
+	return &Client{client: cli}
+}
+
+func (c *Client) SetTempConnUrl(url string) {
+	c.url = url
+}
+
 func (c *Client) GetInfo() (info *types.NetworkInfo, err error) {
-	body, _, err := c.httpGet("info")
+	body, code, err := c.httpGet("info")
 	if err != nil {
 		return nil, ErrBadGateway
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("get info error: %s", string(body))
 	}
 
 	info = &types.NetworkInfo{}
@@ -56,9 +69,12 @@ func (c *Client) GetInfo() (info *types.NetworkInfo, err error) {
 }
 
 func (c *Client) GetPeers() ([]string, error) {
-	body, _, err := c.httpGet("peers")
+	body, code, err := c.httpGet("peers")
 	if err != nil {
 		return nil, ErrBadGateway
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("get peers error: %s", string(body))
 	}
 
 	peers := make([]string, 0)
@@ -91,7 +107,7 @@ func (c *Client) GetTransactionByID(id string) (tx *types.Transaction, err error
 		// json unmarshal
 		tx = &types.Transaction{}
 		err = json.Unmarshal(body, tx)
-		return tx, err
+		return
 	case 202:
 		return nil, ErrPendingTx
 	case 400:
@@ -162,27 +178,30 @@ func (c *Client) GetTransactionTags(id string) ([]types.Tag, error) {
 	return tags, nil
 }
 
-func (c *Client) GetTransactionData(id string, extension ...string) (body []byte, err error) {
+func (c *Client) GetTransactionData(id string, extension ...string) ([]byte, error) {
 	urlPath := fmt.Sprintf("tx/%v/%v", id, "data")
 	if extension != nil {
 		urlPath = urlPath + "." + extension[0]
 	}
-	body, statusCode, _ := c.httpGet(urlPath)
+	data, statusCode, err := c.httpGet(urlPath)
+	if err != nil {
+		return nil, fmt.Errorf("httpGet error: %v", err)
+	}
 
 	// When data is bigger than 12MiB statusCode == 400 NOTE: Data bigger than that has to be downloaded chunk by chunk.
-	if statusCode == 400 {
-		body, err = c.DownloadChunkData(id)
-		return
-	} else if statusCode == 200 {
-		if len(body) == 0 {
+	switch statusCode {
+	case 200:
+		if len(data) == 0 {
 			return c.DownloadChunkData(id)
 		}
-		return body, nil
-	} else if statusCode == 202 {
+		return data, nil
+	case 400:
+		return c.DownloadChunkData(id)
+	case 202:
 		return nil, ErrPendingTx
-	} else if statusCode == 404 {
+	case 404:
 		return nil, ErrNotFound
-	} else {
+	default:
 		return nil, ErrBadGateway
 	}
 }
@@ -190,7 +209,7 @@ func (c *Client) GetTransactionData(id string, extension ...string) (body []byte
 // GetTransactionDataByGateway
 func (c *Client) GetTransactionDataByGateway(id string) (body []byte, err error) {
 	urlPath := fmt.Sprintf("/%v/%v", id, "data")
-	body, statusCode, _ := c.httpGet(urlPath)
+	body, statusCode, err := c.httpGet(urlPath)
 	switch statusCode {
 	case 200:
 		if len(body) == 0 {
@@ -216,18 +235,33 @@ func (c *Client) GetTransactionPrice(data []byte, target *string) (reward int64,
 		url = fmt.Sprintf("%v/%v", url, *target)
 	}
 
-	body, _, err := c.httpGet(url)
+	body, code, err := c.httpGet(url)
+	if err != nil {
+		return
+	}
+	if code != 200 {
+		return 0, fmt.Errorf("get reward error: %s", string(body))
+	}
+
+	reward, err = strconv.ParseInt(string(body), 10, 64)
 	if err != nil {
 		return
 	}
 
-	return strconv.ParseInt(string(body), 10, 64)
+	// reward can not be 0
+	if reward <= 0 {
+		err = errors.New("reward must more than 0")
+	}
+	return
 }
 
 func (c *Client) GetTransactionAnchor() (anchor string, err error) {
-	body, _, err := c.httpGet("tx_anchor")
+	body, code, err := c.httpGet("tx_anchor")
 	if err != nil {
 		return
+	}
+	if code != 200 {
+		return "", fmt.Errorf("get tx anchor err: %s", string(body))
 	}
 
 	anchor = string(body)
@@ -259,11 +293,11 @@ func (c *Client) SubmitChunks(gc *types.GetChunk) (status string, code int, err 
 }
 
 // Arql is Deprecated, recommended to use GraphQL
-// func (c *Client) Arql(arql string) (ids []string, err error) {
-// 	body, _, err := c.httpPost("arql", []byte(arql))
-// 	err = json.Unmarshal(body, &ids)
-// 	return
-// }
+func (c *Client) Arql(arql string) (ids []string, err error) {
+	body, _, err := c.httpPost("arql", []byte(arql))
+	err = json.Unmarshal(body, &ids)
+	return
+}
 
 func (c *Client) GraphQL(query string) ([]byte, error) {
 	// generate query
@@ -298,9 +332,12 @@ func (c *Client) GraphQL(query string) ([]byte, error) {
 
 // Wallet
 func (c *Client) GetWalletBalance(address string) (arAmount *big.Float, err error) {
-	body, _, err := c.httpGet(fmt.Sprintf("wallet/%s/balance", address))
+	body, code, err := c.httpGet(fmt.Sprintf("wallet/%s/balance", address))
 	if err != nil {
 		return
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("get balance error: %s", string(body))
 	}
 
 	winstomStr := string(body)
@@ -315,9 +352,12 @@ func (c *Client) GetWalletBalance(address string) (arAmount *big.Float, err erro
 }
 
 func (c *Client) GetLastTransactionID(address string) (id string, err error) {
-	body, _, err := c.httpGet(fmt.Sprintf("wallet/%s/last_tx", address))
+	body, code, err := c.httpGet(fmt.Sprintf("wallet/%s/last_tx", address))
 	if err != nil {
 		return
+	}
+	if code != 200 {
+		return "", fmt.Errorf("get last id error: %s", string(body))
 	}
 
 	id = string(body)
@@ -326,24 +366,28 @@ func (c *Client) GetLastTransactionID(address string) (id string, err error) {
 
 // Block
 func (c *Client) GetBlockByID(id string) (block *types.Block, err error) {
-	body, _, err := c.httpGet(fmt.Sprintf("block/hash/%s", id))
+	body, code, err := c.httpGet(fmt.Sprintf("block/hash/%s", id))
 	if err != nil {
 		return
 	}
 
-	block = &types.Block{}
-	err = json.Unmarshal(body, block)
+	if code != 200 {
+		return nil, fmt.Errorf("get block by id error: %s", string(body))
+	}
+	block, err = utils.DecodeBlock(string(body))
 	return
 }
 
 func (c *Client) GetBlockByHeight(height int64) (block *types.Block, err error) {
-	body, _, err := c.httpGet(fmt.Sprintf("block/height/%d", height))
+	body, code, err := c.httpGet(fmt.Sprintf("block/height/%d", height))
 	if err != nil {
 		return
 	}
 
-	block = &types.Block{}
-	err = json.Unmarshal(body, block)
+	if code != 200 {
+		return nil, fmt.Errorf("get block by height error: %s", string(body))
+	}
+	block, err = utils.DecodeBlock(string(body))
 	return
 }
 
@@ -454,60 +498,49 @@ func (c *Client) DownloadChunkData(id string) ([]byte, error) {
 	return data, nil
 }
 
-func (c *Client) GetBlockFromPeers(height int64) (*types.Block, error) {
-	peers, err := c.GetPeers()
+func (c *Client) GetUnconfirmedTx(arId string) (*types.Transaction, error) {
+	_path := fmt.Sprintf("unconfirmed_tx/%s", arId)
+	body, statusCode, err := c.httpGet(_path)
+	if statusCode != 200 {
+		return nil, errors.New("not found unconfirmed tx")
+	}
+	if err != nil {
+		return nil, err
+	}
+	tx := &types.Transaction{}
+	if err := json.Unmarshal(body, tx); err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (c *Client) GetPendingTxIds() ([]string, error) {
+	body, statusCode, err := c.httpGet("/tx/pending")
+	if statusCode != 200 {
+		return nil, errors.New("get pending txIds failed")
+	}
+	if err != nil {
+		return nil, err
+	}
+	res := make([]string, 0)
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (c *Client) GetBlockHashList() ([]string, error) {
+	body, statusCode, err := c.httpGet("/hash_list")
+	if statusCode != 200 {
+		return nil, errors.New("get block hash list failed")
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	for _, peer := range peers {
-		pNode := NewClient("http://" + peer)
-		block, err := pNode.GetBlockByHeight(height)
-		if err != nil {
-			fmt.Printf("get block error:%v, peer: %s\n", err, peer)
-			continue
-		}
-		fmt.Printf("success get block; peer: %s\n", peer)
-		return block, nil
-	}
-
-	return nil, errors.New("get block from peers failed")
-}
-
-func (c *Client) GetTxFromPeers(arId string) (*types.Transaction, error) {
-	peers, err := c.GetPeers()
-	if err != nil {
+	res := make([]string, 0)
+	if err := json.Unmarshal(body, &res); err != nil {
 		return nil, err
 	}
-
-	for _, peer := range peers {
-		pNode := NewClient("http://" + peer)
-		tx, err := pNode.GetTransactionByID(arId)
-		if err != nil {
-			fmt.Printf("get tx error:%v, peer: %s\n", err, peer)
-			continue
-		}
-		fmt.Printf("success get tx; peer: %s\n", peer)
-		return tx, nil
-	}
-
-	return nil, errors.New("get tx from peers failed")
-}
-
-func PstClient(url string) {
-	var client http.Client
-	resp, err := client.Get(url)
-	if err != nil {
-		fmt.Print("Error", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Print("Error", err)
-		}
-		bodyString := string(bodyBytes)
-		log.Info(bodyString)
-	}
+	return res, nil
 }

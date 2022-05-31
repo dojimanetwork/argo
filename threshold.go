@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	tcrsa "github.com/dojimanetwork/rsago"
+	tcrsa "github.com/everFinance/ttcrsa"
 )
 
 // CreateTcKeyPair

@@ -26,14 +26,14 @@ func main() {
 		panic(err)
 	}
 
-	id, err := wallet.SendAR(
+	tx, err := wallet.SendAR(
   //id, err := wallet.SendWinston( 
 		big.NewFloat(1.0), // AR amount
 		{{target}}, // target address
 		[]types.Tag{},
 	)
 
-	fmt.Println(id, err) // {{id}}, nil
+	fmt.Println(tx.ID, err)
 }
 
 ```
@@ -41,7 +41,7 @@ func main() {
 #### Send Data
 
 ```golang
-id, err := wallet.SendData(
+tx, err := wallet.SendData(
   []byte("123"), // Data bytes
   []types.Tag{
     types.Tag{
@@ -60,7 +60,7 @@ Arweave occasionally experiences congestion, and a low Reward can cause a transa
 
 ```golang
 speedUp := int64(50) // means reward = reward * 150%
-id, err := wallet.SendDataSpeedUp(
+tx, err := wallet.SendDataSpeedUp(
   []byte("123"), // Data bytes
   []types.Tag{
     types.Tag{
@@ -69,7 +69,7 @@ id, err := wallet.SendDataSpeedUp(
     },
   },speedUp)
 
-fmt.Println(id, err) // {{id}}, nil
+fmt.Println(tx.ID, err)
 ```
 ### Components
 
@@ -93,6 +93,9 @@ fmt.Println(id, err) // {{id}}, nil
 - [x] GetBundle
 - [x] GetTxDataFromPeers
 - [x] BroadcastData
+- [x] GetUnconfirmedTx
+- [x] GetPendingTxIds
+- [x] GetBlockHashList
 
 Initialize the instance:
 
@@ -116,6 +119,7 @@ arClient := argo.NewClient("https://arweave.net", proxyUrl)
 - [x] CreateAndSignBundleItem
 - [x] SendBundleTxSpeedUp
 - [x] SendBundleTx
+- [x] SendPst
 
 Initialize the instance, use a keyfile.json:
 
@@ -125,6 +129,16 @@ arWallet := argo.NewWalletFromPath("./keyfile.json")
 // if your network is not good, you can config http proxy
 proxyUrl := "http://127.0.0.1:8001"
 arWallet := NewWalletFromPath("./keyfile.json", "https://arweave.net", proxyUrl)
+```
+
+#### Signer
+
+- [x] SignTx
+- [x] SignMsg
+- [x] Owner
+
+```golang
+signer := argo.NewSignerFromPath("./keyfile.json")
 ```
 
 #### Utils
@@ -148,6 +162,7 @@ Package for Arweave develop toolkit.
 - [x] GetSignatureData
 - [x] VerifyTransaction
 - [x] NewBundle
+- [x] GenerateIndepHash
 
 #### RSA Threshold Cryptography
 
@@ -236,7 +251,7 @@ tx := &types.Transaction{
 tx.LastTx = anchor
 tx.Owner = utils.Base64Encode(w.PubKey.N.Bytes())
 
-if err = utils.SignTransaction(tx, w.PubKey, w.PrvKey); err != nil {
+if err = utils.SignTransaction(tx, w.PubKey, w.Signer.PrvKey); err != nil {
   return
 }
 
@@ -329,7 +344,7 @@ resp, err := w.Client.BatchSendItemToBundler(items,"") // The second parameter i
 
 #### Send Bundle Tx
 ```go
-txId, err := w.SendBundleTx(bd.BundleBinary, arTxtags)
+tx, err := w.SendBundleTx(bd.BundleBinary, arTxtags)
 ```
 
 #### Get Bundle and Verify

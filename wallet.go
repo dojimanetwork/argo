@@ -1,8 +1,6 @@
 package argo
 
 import (
-	"crypto/rsa"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -12,14 +10,11 @@ import (
 
 	"github.com/dojimanetwork/argo/types"
 	"github.com/dojimanetwork/argo/utils"
-	"github.com/dojimanetwork/jwkgo"
 )
 
 type Wallet struct {
-	Client  *Client
-	PubKey  *rsa.PublicKey
-	PrvKey  *rsa.PrivateKey
-	Address string
+	Client *Client
+	Signer *Signer
 }
 
 // proxyUrl: option
@@ -33,68 +28,39 @@ func NewWalletFromPath(path string, clientUrl string, proxyUrl ...string) (*Wall
 }
 
 func NewWallet(b []byte, clientUrl string, proxyUrl ...string) (w *Wallet, err error) {
-	key, err := jwkgo.Unmarshal(b)
+	signer, err := NewSigner(b)
 	if err != nil {
-		return
-	}
-	// fmt.Printf("Key %+v", key)
-
-	pubKey, err := key.DecodePublicKey()
-	if err != nil {
-		return
+		return nil, err
 	}
 
-	fmt.Printf("Public key %+v", pubKey)
-
-	pub, ok := pubKey.(*rsa.PublicKey)
-	if !ok {
-		err = fmt.Errorf("pubKey type error")
-		return
-	}
-	// prvKey, err := key.DecodePrivateKey()
-	// if err != nil {
-	// 	return
-	// }
-
-	// fmt.Printf("Private key %+v", prvKey)
-
-	// prv, ok := prvKey.(*rsa.PrivateKey)
-	// if !ok {
-	// 	err = fmt.Errorf("prvKey type error")
-	// 	return
-	// }
-
-	addr := sha256.Sum256(pub.N.Bytes())
 	w = &Wallet{
-		Client:  NewClient(clientUrl, proxyUrl...),
-		PubKey:  pub,
-		// PrvKey:  prv,
-		Address: utils.Base64Encode(addr[:]),
+		Client: NewClient(clientUrl, proxyUrl...),
+		Signer: signer,
 	}
 
 	return
 }
 
 func (w *Wallet) Owner() string {
-	return utils.Base64Encode(w.PubKey.N.Bytes())
+	return w.Signer.Owner()
 }
 
-func (w *Wallet) SendAR(amount *big.Float, target string, tags []types.Tag) (id string, err error) {
+func (w *Wallet) SendAR(amount *big.Float, target string, tags []types.Tag) (types.Transaction, error) {
 	return w.SendWinstonSpeedUp(utils.ARToWinston(amount), target, tags, 0)
 }
 
-func (w *Wallet) SendARSpeedUp(amount *big.Float, target string, tags []types.Tag, speedFactor int64) (id string, err error) {
+func (w *Wallet) SendARSpeedUp(amount *big.Float, target string, tags []types.Tag, speedFactor int64) (types.Transaction, error) {
 	return w.SendWinstonSpeedUp(utils.ARToWinston(amount), target, tags, speedFactor)
 }
 
-func (w *Wallet) SendWinston(amount *big.Int, target string, tags []types.Tag) (id string, err error) {
+func (w *Wallet) SendWinston(amount *big.Int, target string, tags []types.Tag) (types.Transaction, error) {
 	return w.SendWinstonSpeedUp(amount, target, tags, 0)
 }
 
-func (w *Wallet) SendWinstonSpeedUp(amount *big.Int, target string, tags []types.Tag, speedFactor int64) (id string, err error) {
+func (w *Wallet) SendWinstonSpeedUp(amount *big.Int, target string, tags []types.Tag, speedFactor int64) (types.Transaction, error) {
 	reward, err := w.Client.GetTransactionPrice(nil, &target)
 	if err != nil {
-		return
+		return types.Transaction{}, err
 	}
 
 	tx := &types.Transaction{
@@ -110,16 +76,16 @@ func (w *Wallet) SendWinstonSpeedUp(amount *big.Int, target string, tags []types
 	return w.SendTransaction(tx)
 }
 
-func (w *Wallet) SendData(data []byte, tags []types.Tag) (id string, err error) {
+func (w *Wallet) SendData(data []byte, tags []types.Tag) (types.Transaction, error) {
 	return w.SendDataSpeedUp(data, tags, 0)
 }
 
 // SendDataSpeedUp set speedFactor for speed up
 // eg: speedFactor = 10, reward = 1.1 * reward
-func (w *Wallet) SendDataSpeedUp(data []byte, tags []types.Tag, speedFactor int64) (id string, err error) {
+func (w *Wallet) SendDataSpeedUp(data []byte, tags []types.Tag, speedFactor int64) (types.Transaction, error) {
 	reward, err := w.Client.GetTransactionPrice(data, nil)
 	if err != nil {
-		return
+		return types.Transaction{}, err
 	}
 
 	tx := &types.Transaction{
@@ -136,35 +102,37 @@ func (w *Wallet) SendDataSpeedUp(data []byte, tags []types.Tag, speedFactor int6
 }
 
 // SendTransaction: if send success, should return pending
-func (w *Wallet) SendTransaction(tx *types.Transaction) (id string, err error) {
+func (w *Wallet) SendTransaction(tx *types.Transaction) (types.Transaction, error) {
 	anchor, err := w.Client.GetTransactionAnchor()
 	if err != nil {
-		return
+		return types.Transaction{}, err
 	}
 	tx.LastTx = anchor
 	tx.Owner = w.Owner()
-	if err = utils.SignTransaction(tx, w.PrvKey); err != nil {
-		return
+	if err = w.Signer.SignTx(tx); err != nil {
+		return types.Transaction{}, err
 	}
-
-	id = tx.ID
 
 	uploader, err := CreateUploader(w.Client, tx, nil)
 	if err != nil {
-		return
+		return types.Transaction{}, err
 	}
 	err = uploader.Once()
-	return
+	return *tx, err
 }
 
-func (w *Wallet) SendPstTransfer(contractId string, target string, qty int64, customTags []types.Tag, speedFactor int64) (string, error) {
-	// assemble tx tags
-	txTags := make([]types.Tag, 0)
-	swcTags, err := utils.PstTransferTags(contractId, target, qty)
-	if err != nil {
-		return "", err
+func (w *Wallet) SendPst(contractId string, target string, qty *big.Int, customTags []types.Tag, speedFactor int64) (types.Transaction, error) {
+	maxQty := big.NewInt(9007199254740991) // swc support max js integer
+	if qty.Cmp(maxQty) > 0 {
+		return types.Transaction{}, fmt.Errorf("qty:%s can not more than max integer:%s", qty.String(), maxQty.String())
 	}
-	txTags = append(txTags, swcTags...)
+
+	// assemble tx tags
+	swcTags, err := utils.PstTransferTags(contractId, target, qty.Int64())
+	if err != nil {
+		return types.Transaction{}, err
+	}
+
 	if len(customTags) > 0 {
 		// customTags can not include pstTags
 		mmap := map[string]struct{}{
@@ -175,18 +143,14 @@ func (w *Wallet) SendPstTransfer(contractId string, target string, qty int64, cu
 		}
 		for _, tag := range customTags {
 			if _, ok := mmap[tag.Name]; ok {
-				return "", errors.New("custom tags can not include smartweave tags")
+				return types.Transaction{}, errors.New("custom tags can not include smartweave tags")
 			}
 		}
-		txTags = append(txTags, customTags...)
+		swcTags = append(swcTags, customTags...)
 	}
 
 	// rand data
 	data := strconv.Itoa(rand.Intn(9999))
 	// send data tx
-	txId, err := w.SendDataSpeedUp([]byte(data), txTags, speedFactor)
-	if err != nil {
-		return "", err
-	}
-	return txId, nil
+	return w.SendDataSpeedUp([]byte(data), swcTags, speedFactor)
 }
