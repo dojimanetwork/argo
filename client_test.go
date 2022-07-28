@@ -1,6 +1,7 @@
 package argo
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/dojimanetwork/argo/utils"
@@ -180,6 +181,7 @@ func TestClient_GetBlockByHeight(t *testing.T) {
 	arNode := "https://arweave.net"
 	cli := NewClient(arNode)
 	block, err := cli.GetBlockByHeight(793791)
+	fmt.Printf("block %v", block)
 	assert.NoError(t, err)
 	assert.Equal(t, "ci2uJhYmdldgkHbScDClCwAA0eqn7dCduAEpLfRorSA", block.Nonce)
 }
@@ -265,4 +267,9 @@ func TestNewClient(t *testing.T) {
 	res, err := cli.GetPendingTxIds()
 	assert.NoError(t, err)
 	t.Log("pending tx number:", len(res))
+}
+
+func TestParseOwner(t *testing.T) {
+	owner, _ := utils.Base64Decode("3iX6z3CrZsp-bqqb-bRBaz9AwGZEnrcB5_0yLgdxL9NIAuSTMmvT3_lp8aC9X8JW17MvbsBEp6PjSRiDG2vg1RQvV4pxhBNM9hiGf_56pEqO5gpEJzAyJWPXLHyHAFBeNoRzYf_63V4_s0YQbS74WOn7iVb_0l4oxmXkjWZEBmjFH4x-L6T_jkW14i8YGy3s5sZ4qU-N_A-tU8dmWqUabrlm-bOnN3HnYKmKhKxz0-lWmD9WP6FG0oK8ZVnbWZgDyBS7XhxgZ5ZDqOXhYo70ztZKixhGMIZ4V2CyLJSbe6Z1jadfQyIUxXvLvPLgnkmKga16HszIGzAonDDJN-keSkxcJsVY1UH9LZbBqZoadj2-q-1wCOJ2qc88C4yZGwNJtV3uc8Z5DIW8sWv6u_m3tuie74PH3Ac8eZ9iprJAkPiYKy5llhEGB0bd60q3aiA5J-tAVHApXZxgfSph6JGSkg5WQ4jlqPutFMexhg-uIM9BKOJtm0p3d1xCZ8pXFEyZWjftJPa5xgBBBWQfuRy6qikLpuul7oISPgCtZHZKI7-80ioUCzQfYrs31l3RXlvKuHiN5DPERhQcqSy7VN1lPAfAt2V4bNY4LOQ_NO4qV8e9QCeJp5vrXKrVW9ig25HmcHhucRRSImtEoFIXTCWCIbV80dbCXXHtFENFNxMhY1E is invalid sender address: address format not supported: 3iX6z3CrZsp-bqqb-bRBaz9AwGZEnrcB5_0yLgdxL9NIAuSTMmvT3_lp8aC9X8JW17MvbsBEp6PjSRiDG2vg1RQvV4pxhBNM9hiGf_56pEqO5gpEJzAyJWPXLHyHAFBeNoRzYf_63V4_s0YQbS74WOn7iVb_0l4oxmXkjWZEBmjFH4x-L6T_jkW14i8YGy3s5sZ4qU-N_A-tU8dmWqUabrlm-bOnN3HnYKmKhKxz0-lWmD9WP6FG0oK8ZVnbWZgDyBS7XhxgZ5ZDqOXhYo70ztZKixhGMIZ4V2CyLJSbe6Z1jadfQyIUxXvLvPLgnkmKga16HszIGzAonDDJN-keSkxcJsVY1UH9LZbBqZoadj2-q-1wCOJ2qc88C4yZGwNJtV3uc8Z5DIW8sWv6u_m3tuie74PH3Ac8eZ9iprJAkPiYKy5llhEGB0bd60q3aiA5J-tAVHApXZxgfSph6JGSkg5WQ4jlqPutFMexhg-uIM9BKOJtm0p3d1xCZ8pXFEyZWjftJPa5xgBBBWQfuRy6qikLpuul7oISPgCtZHZKI7-80ioUCzQfYrs31l3RXlvKuHiN5DPERhQcqSy7VN1lPAfAt2V4bNY4LOQ_NO4qV8e9QCeJp5vrXKrVW9ig25HmcHhucRRSImtEoFIXTCWCIbV80dbCXXHtFENFNxMhY1E")
+	t.Log("owner", owner)
 }

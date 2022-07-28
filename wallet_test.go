@@ -1,7 +1,11 @@
 package argo
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"github.com/dojimanetwork/argo/types"
+	"github.com/dojimanetwork/argo/utils"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +15,7 @@ var testWallet *Wallet
 var err error
 
 func init() {
-	clientUrl := "https://arweave.net"
+	clientUrl := "http://localhost:1984"
 	testWallet, err = NewWallet([]byte(`{ "kty": "RSA",
 	"n":
 	 "nQ9iy1fRM2xrgggjHhN1xZUnOkm9B4KFsJzH70v7uLMVyDqfyIJEVXeJ4Jhk_8KpjzYQ1kYfnCMjeXnhTUfY3PbeqY4PsK5nTje0uoOe1XGogeGAyKr6mVtKPhBku-aq1gz7LLRHndO2tvLRbLwX1931vNk94bSfJPYgMfU7OXxFXbTdKU38W6u9ShoaJGgUQI1GObd_sid1UVniCmu7P-99XPkixqyacsrkHzBajGz1S7jGmpQR669KWE9Z0unvH0KSHxAKoDD7Q7QZO7_4ujTBaIFwy_SJUxzVV8G33xvs7edmRdiqMdVK5W0LED9gbS4dv_aee9IxUJQqulSqZphPgShIiGNl9TcL5iUi9gc9cXR7ISyavos6VGiem_A-S-5f-_OKxoeZzvgAQda8sD6jtBTTuM5eLvgAbosbaSi7zFYCN7zeFdB72OfvCh72ZWSpBMH3dkdxsKCDmXUXvPdDLEnnRS87-MP5RV9Z6foq_YSEN5MFTMDdo4CpFGYl6mWTP6wUP8oM3Mpz3-_HotwSZEjASvWtiff2tc1fDHulVMYIutd52Fis_FKj6K1fzpiDYVA1W3cV4P28Q1-uF3CZ8nJEa5FXchB9lFrXB4HvsJVG6LPSt-y2R9parGi1_kEc6vOYIesKspgZ0hLyIKtqpTQFiPgKRlyUc-WEn5E",
@@ -47,18 +51,45 @@ func TestAddress(t *testing.T) {
 
 // test sand ar without data
 func TestWallet_SendAR(t *testing.T) {
-	// arNode := "https://arweave.net"
-	// w, err := NewWalletFromPath("./example/testKey.json", arNode) // your wallet private key
-	// assert.NoError(t, err)
-	//
-	// target := "cSYOy8-p1QFenktkDBFyRM3cwZSTrQ_J4EsELLho_UE"
-	// amount := big.NewFloat(0.001)
-	// tags := []types.Tag{
-	// 	{Name: "argo", Value: "sendAR"},
-	// }
-	// tx,  err := w.SendAR(amount, target, tags)
-	// assert.NoError(t, err)
-	// t.Logf("tx hash: %s \n", tx.ID)
+	arNode := "http://localhost:1984"
+	path := os.Getenv("AR_KEY_PATH")
+	cli := NewClient(arNode)
+	w, err := NewWalletFromPath(path, arNode) // your wallet private key
+	assert.NoError(t, err)
+	tag := types.Tag{
+		Name:  "memo",
+		Value: "OUT:4F577F90361A91FEE057DFCAF43DAFB60F3F85743A6742AFA0DBFEBA266A078D",
+	}
+	var tags []types.Tag
+	tags = append(tags, tag)
+	encodeTag := utils.TagsEncode(tags)
+
+	transaction := &types.Transaction{
+		Format:   2,
+		Target:   "2eqRgoKFc3QhXhZWFoCoBprtep-9oiHojyaz_Ey_6os",
+		Reward:   "1748074863",
+		Quantity: "9999999998251925137",
+		Data:     "",
+		DataSize: "0",
+		Tags:     encodeTag,
+	}
+
+	anchor, err := cli.GetTransactionAnchor()
+	transaction.LastTx = anchor
+	transaction.Owner = w.Owner()
+
+	signingData, err := utils.GetSignatureData(transaction)
+	assert.NoError(t, err)
+
+	signedData, err := utils.Sign(signingData, w.Signer.PrvKey)
+	txId256 := sha256.Sum256(signedData)
+	// generate tx id
+	txId := utils.Base64Encode(txId256[:])
+	transaction.ID = txId
+	transaction.Signature = utils.Base64Encode(signedData)
+	t.Logf("before signed data %v", transaction)
+	status, code, err := cli.SubmitTransaction(transaction)
+	t.Logf("status : %s, code :%d", status, code)
 }
 
 // test send small size file
