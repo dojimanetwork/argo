@@ -187,12 +187,12 @@ func TestClient_GetBlockByHeight(t *testing.T) {
 }
 
 func TestClient_GetTransactionDataByGateway(t *testing.T) {
-	arNode := "https://arweave.net"
+	arNode := "https://ar-test.h4s.dojima.network"
 	cli := NewClient(arNode)
-	id := "3S44SVxPWAqtadjehWR3bW1gP4B6Qsii4bnx9yz0_0s"
-	data, err := cli.GetTransactionDataByGateway(id)
+	err := cli.MintTestAr("2txTDSdb_RjG12uHZlVsB5jrfPzqxtzScKTtPef2KZ0", "100000000000000000000")
+	bal, err := cli.GetWalletBalance("2txTDSdb_RjG12uHZlVsB5jrfPzqxtzScKTtPef2KZ0")
+	fmt.Println(bal)
 	assert.NoError(t, err)
-	t.Log(len(data))
 }
 
 func TestClient_GetPeers(t *testing.T) {

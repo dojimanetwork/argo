@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/inconshreveable/log15"
 	"io/ioutil"
 	"math/big"
 	"net/http"
@@ -13,6 +12,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"github.com/inconshreveable/log15"
 
 	"github.com/dojimanetwork/argo/types"
 	"github.com/dojimanetwork/argo/utils"
@@ -278,6 +279,28 @@ func (c *Client) SubmitTransaction(tx *types.Transaction) (status string, code i
 	status = string(body)
 	code = statusCode
 	return
+}
+
+func (c *Client) MintTestAr(address string, amount string) error {
+	mint := fmt.Sprintf("/mint/%s/%s", address, amount)
+	body, statusCode, err := c.httpGet(mint)
+
+	if err != nil {
+		return err
+	}
+	if statusCode != 200 {
+		return fmt.Errorf("failed to mint the ar token : %s", string(body))
+	}
+
+	body, statusCode, err = c.httpGet("mine")
+	if err != nil {
+		return err
+	}
+	if statusCode != 200 {
+		return fmt.Errorf("failed to mine : %s", string(body))
+	}
+
+	return nil
 }
 
 func (c *Client) SubmitChunks(gc *types.GetChunk) (status string, code int, err error) {
