@@ -303,6 +303,18 @@ func (c *Client) MintTestAr(address string, amount string) error {
 	return nil
 }
 
+func (c *Client) Mine() error {
+	body, statusCode, err := c.httpGet("mine")
+	if err != nil {
+		return err
+	}
+	if statusCode != 200 {
+		return fmt.Errorf("failed to mine : %s", string(body))
+	}
+
+	return nil
+}
+
 func (c *Client) SubmitChunks(gc *types.GetChunk) (status string, code int, err error) {
 	byteGc, err := gc.Marshal()
 	if err != nil {
